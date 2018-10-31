@@ -25,7 +25,12 @@
         ],
         "psr-4": {
             "App\\": "app/"
-        }
+        },
+        "files":[
+            "app/Libs/Common.php",
+            "app/Libs/functions.php",
+            "app/Libs/LSms.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

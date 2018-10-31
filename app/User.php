@@ -25,6 +25,14 @@ class User extends Authenticatable
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token',
+        '', '',
     ];
+
+    public function add($data){
+        return $this->insertGetId($data);
+    }
+
+    public function hasUser($mobile){
+        return $this->where('mobile',$mobile)->first();
+    }
 }
