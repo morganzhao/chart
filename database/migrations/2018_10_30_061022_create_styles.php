@@ -31,6 +31,6 @@ class CreateStyles extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('style');
+        Schema::dropIfExists('styles');
     }
 }
