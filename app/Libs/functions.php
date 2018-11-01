@@ -26,3 +26,12 @@ function getSql($param){
     $sql = DB::getQueryLog();
     return $sql;
 }
+
+function getUserInfo($token){
+   $info = DB::table('users')->where('token',$token)->first();
+   if($info){
+       return $info;
+   }else{
+       showMsg(2,new \stdclass,'无效的token！');
+   }
+}

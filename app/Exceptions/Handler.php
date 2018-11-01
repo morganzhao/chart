@@ -46,6 +46,9 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Exception $exception)
     {
+        if(app()->environment()=='production'){
+            showMsg(0,[],'操作异常！');
+        }
         return parent::render($request, $exception);
     }
 }

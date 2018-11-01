@@ -37,3 +37,11 @@ Route::any('/gam/send','GamController@send')->name('send');
 Route::any('/gam/updateUserInfo','GamController@updateUserInfo')->name('updateUserInfo');
 
 Route::any('/gam/resetPassword','GamController@resetPassword')->name('resetPassword');
+
+Route::any('/gam/focus','GamController@focus')->name('focus');
+
+
+Route::any('/gam/styleList','GamController@styleList')->name('styleList');
+
+
+Route::any('/gam/addTag','GamController@addTag')->name('addTag');
