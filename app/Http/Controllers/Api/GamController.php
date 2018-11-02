@@ -13,14 +13,16 @@ use App\Libs\Common;
 use App\Model\Contact;
 use App\Libs\LSms;
 use App\Model\Style;
+use Illuminate\Support\Facades\Storage;
 
 class GamController extends Controller
 {
     public $successStatus = 200;
     public $notAllow = 'Not Allowed';
+    protected $nullClass ;
     //
     public function __construct(){
-        
+        $this->nullClass = new \stdClass;
     }
 
     public function index(Request $request){
@@ -31,11 +33,6 @@ class GamController extends Controller
         return response()->json($return);
     }
 
-    public function UserInfo(){
-        $arr = array_fill(1,33,'');
-        $keys = array_keys($arr);
-        print_r(implode(',',$keys));die;
-    }
     /*
      *register
      */
@@ -60,23 +57,20 @@ class GamController extends Controller
             'token'=>$rand,
             'password'=>Hash::make($request->password),
             'clear-text_password'=>$request->password,
-            'age'=>$request->age,
-            'sex'=>$request->sex?$request->sex:1,
-            'nickname'=>$request->nickname,
-            'signature'=>$request->signature
 
         ];
         $userModel = new User;
 
         $user = $userModel->hasUser($request->mobile);
         if($user&&$user->mobile){
-            showMsg(2,[],'手机号已注册！');
+            showMsg(2,$this->nullClass,'手机号已注册！');
         }
         $id = $userModel->add($data);
         if($id){
+            unset($data['clear-text_password']);
             showMsg(1,$data);
         }else{
-            showMsg(2,[]);
+            showMsg(2,$this->nullClass);
         }
     }
     /*
@@ -92,7 +86,7 @@ class GamController extends Controller
         }
         $model = new User();
         //verify password
-        $info = $model->where('mobile',$request->mobile)->first();
+        $info = $model->where('mobile',$request->mobile)->first(['id','mobile','password','token']);
         $password = Hash::make($request['password']);
         if(!password_verify($request->password,$info['password'])){
             showMsg(2,new class{},'账号或密码不正确！'); 
@@ -100,8 +94,31 @@ class GamController extends Controller
         if($info){
             showMsg(1,$info); 
         }else{
-            showMsg(2,new \stdClass);
+            showMsg(2,$this->nullClass);
         }
+    }
+    /*
+     *
+     */
+    public function smsLogin(Request $request){
+        $validator = Validator::make($request->all(),[
+            'mobile'=>'required',
+            'sms_code'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        if($request->sms_code!=9999){
+            showMsg(2,$this->nullClass,'验证码不正确！');
+        }
+        $model = new User();
+        $info = $model->where('mobile',$request->mobile)->first(['id','mobile','token']);
+        if($info){
+            showMsg(1,$info);
+        }else{
+            showMsg(2,$this->nullClass);
+        }
+
     }
     /*
      *同步联系人
@@ -167,12 +184,13 @@ class GamController extends Controller
      */
     public function updateUserInfo(Request $request){
         $validator = Validator::make($request->all(),[
-            'id'=>'required',
+            'token'=>'required',
            'age'=>'required' 
         ]);
         if($validator->fails()){
             showMsg(2,$validator->errors());
         }
+        $user_info = getUserInfo($request->token);
         $data = [
             'age'=>$request->age,
             'sex'=>$request->sex,
@@ -182,11 +200,11 @@ class GamController extends Controller
             'updated_at'=>date('Y-m-d H:i:s'),
         ];
         $model = new User();
-        $res = $model->where('id',$request->id)->update($data);
+        $res = $model->where('id',$user_info->id)->update($data);
         if($res){
             showMsg(1,$data);
         }else{
-            showMsg(2,[]);
+            showMsg(2,$this->nullClass);
         }
 
     }
@@ -261,7 +279,7 @@ class GamController extends Controller
                 showMsg(2,[]);
             }
         }else{
-            showMsg(2,[]);
+            showMsg(2,$this->nullClass);
         }
     }
     /*
@@ -307,6 +325,55 @@ class GamController extends Controller
             showMsg(1,$data);
         }else{
             showMsg(2,[]);
+        }
+    }
+
+    /*
+     *upload img/video
+     */
+    public function upload(Request $request){
+        if ($request->isMethod('POST')){
+            $file = $request->file('file');
+            //判断文件是否上传成功
+            if ($file){
+                //原文件名
+                $originalName = $file->getClientOriginalName();
+                //扩展名
+                $ext = $file->getClientOriginalExtension();
+                //MimeType
+                $type = $file->getClientMimeType();
+                //临时绝对路径
+                $realPath = $file->getRealPath();
+                $filename = uniqid().'.'.$ext;
+                $bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
+                //判断是否上传成功
+                if($bool){
+                    showMsg(1,['file'=>$filename],'上传成功！');
+                }else{
+                    showMsg(2,[],'上传失败！');
+                }
+            }
+        }
+    }
+
+    /*
+     *get userinfo
+     */
+    public function userInfo(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $model = new User();
+        $info = getUserInfo($request->token);
+        if($info){
+            $info = (array)$info;
+            unset($info['clear-text_password']);
+            showMsg(1,$info);
+        }else{
+            showMsg(2,$this->nullClass);
         }
     }
 }

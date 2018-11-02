@@ -19,4 +19,14 @@ Auth::routes();
 
 Route::get('/home', 'HomeController@index')->name('home');
 
+
+
+Route::get('/blog/upload','BlogController@upload')->name('blog.upload');
+
+
+Route::get('/blog/{action}', function(App\Http\Controllers\BlogController $index, $action){
+    return $index->$action();
+});
+
+
 Route::resource('blog', 'BlogController');

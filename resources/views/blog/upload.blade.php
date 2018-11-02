@@ -8,7 +8,7 @@
 
             <div class="card-body">
                 {{--  from.method="POST" action="通过 route()函数读取路由别名 " --}}
-                     <form method="POST" action="{{ url('api/gam/upload') }}" enctype="multipart/form-data">
+                <form method="POST" action="{{ route('blog.store') }}">
                     {{--  声明 csrf 令牌  --}}
                     @csrf
                     <div class="form-group">
@@ -19,7 +19,6 @@
                         <label for="content">文章内容</label>
                         <textarea id="content" cols="30" rows="10" class="form-control" name="content"></textarea>
                     </div>
-                          <input type="file" class="form-control" name="file" placeholder="图片">
                     <button class="btn btn-primary" type="submit">发布新文章</button>
                 </form>
             </div>

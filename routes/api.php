@@ -45,3 +45,9 @@ Route::any('/gam/styleList','GamController@styleList')->name('styleList');
 
 
 Route::any('/gam/addTag','GamController@addTag')->name('addTag');
+
+Route::any('/gam/upload','GamController@upload')->name('upload');
+
+Route::post('/gam/smsLogin','GamController@smsLogin')->name('smsLogin');
+
+Route::post('/gam/userInfo','GamController@userInfo')->name('userInfo');

@@ -27,6 +27,7 @@
                     {{ config('app.name', 'Laravel') }}
                 </a>
 <a href="{{ route('blog.create') }}" class="dropdown-item"> 添加文章 </a>
+<a href="{{ route('blog.upload') }}" class="dropdown-item">上传图片</a>
 
                 <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">
                     <span class="navbar-toggler-icon"></span>
