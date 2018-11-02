@@ -197,6 +197,7 @@ class GamController extends Controller
             'mobile'=>$request->mobile,
             'nickname'=>$request->nickname,
             'signature'=>$request->signature,
+            'avatar_url'=>$request->avatar_url,
             'updated_at'=>date('Y-m-d H:i:s'),
         ];
         $model = new User();
@@ -347,6 +348,7 @@ class GamController extends Controller
                 $filename = uniqid().'.'.$ext;
                 $bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
                 //判断是否上传成功
+                $filename = $_SERVER['HTTP_HOST'].'/storage/'.$filename;
                 if($bool){
                     showMsg(1,['file'=>$filename],'上传成功！');
                 }else{
