@@ -13,7 +13,11 @@ class Contact extends Model
         return DB::table($this->getTable())->insert($arr);
     }
 
-    public function getList($map,$limit=10){
-        return DB::table($this->getTable())->where($map)->paginate($limit)->toArray();
+    public function getList($map,$limit=10,$type){
+        if($type==1){
+            return DB::table($this->getTable())->where($map)->paginate($limit)->toArray();
+        }else{
+            return DB::table($this->getTable())->where($map)->get()->toArray();
+        }
     }
 }

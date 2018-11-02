@@ -51,3 +51,6 @@ Route::any('/gam/upload','GamController@upload')->name('upload');
 Route::post('/gam/smsLogin','GamController@smsLogin')->name('smsLogin');
 
 Route::post('/gam/userInfo','GamController@userInfo')->name('userInfo');
+
+
+Route::post('/gam/deleteTag','GamController@deleteTag')->name('deleteTag');

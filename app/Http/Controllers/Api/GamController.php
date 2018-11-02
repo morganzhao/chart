@@ -175,7 +175,7 @@ class GamController extends Controller
         }
         $contact = new Contact();
         $limit = $request->limit?$request->limit:10;
-        $list = $contact->getList($map,$limit);
+        $list = $contact->getList($map,$limit,2);
         showMsg(1,$list);
 
     }
@@ -194,7 +194,7 @@ class GamController extends Controller
         $data = [
             'age'=>$request->age,
             'sex'=>$request->sex,
-            'mobile'=>$request->mobile,
+            'mobile'=>$request->mobile?$request->mobile:$user_info->mobile,
             'nickname'=>$request->nickname,
             'signature'=>$request->signature,
             'avatar_url'=>$request->avatar_url,
@@ -328,6 +328,36 @@ class GamController extends Controller
             showMsg(2,[]);
         }
     }
+    /*
+     *delete tag
+     */
+    public function deleteTag(Request $request){
+        
+        $validator = Validator::make($request->all(),[
+            'token'=>'required',
+            'id'=>'required',
+            'tag'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+
+        $user_info = getUserInfo($request->token);
+        $model = new Style();
+        $style = $model->where('id',$request->id)->first();
+        $string = str_replace(','.$request->tag,'',$style->tags);
+        $data = [
+            'tags'=>$string,
+            'updated_at'=>date('Y-m-d H:i:s')
+        ];
+        $res = $model->where('id',$request->id)->update($data);
+        if($res){
+            $data['tags_arr'] = explode(',',$data['tags']);
+            showMsg(1,$data);
+        }else{
+            showMsg(2,[]);
+        }
+    }
 
     /*
      *upload img/video
@@ -348,7 +378,7 @@ class GamController extends Controller
                 $filename = uniqid().'.'.$ext;
                 $bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
                 //判断是否上传成功
-                $filename = $_SERVER['HTTP_HOST'].'/storage/'.$filename;
+                $filename = 'http://'.$_SERVER['HTTP_HOST'].'/storage/'.$filename;
                 if($bool){
                     showMsg(1,['file'=>$filename],'上传成功！');
                 }else{
