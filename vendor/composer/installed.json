@@ -580,7 +580,7 @@
         },
         "time": "2018-09-11T04:31:03+00:00",
         "type": "library",
-        "installation-source": "source",
+        "installation-source": "dist",
         "autoload": {
             "files": [
                 "src/class/Jieba.php",
