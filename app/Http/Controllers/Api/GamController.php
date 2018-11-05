@@ -164,10 +164,10 @@ class GamController extends Controller
             foreach($list as &$v){
                 $account_info = User::where('mobile',$v['mobile'])->first();
                 if($account_info){
-                    $v['is_attention'] = $account_info['is_attention']?$account_info['is_attention']:0;
+                    $v['is_attention'] = $v['is_attention']?$v['is_attention']:0;
                     $v['is_register'] = 1;
                 }else{
-                    $v['is_attention'] = 0;
+                    $v['is_attention'] = $v['is_attention']?$v['is_attention']:0;
                     $v['is_register'] = 0;
                 }
             }
