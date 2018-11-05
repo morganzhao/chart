@@ -54,3 +54,9 @@ Route::post('/gam/userInfo','GamController@userInfo')->name('userInfo');
 
 
 Route::post('/gam/deleteTag','GamController@deleteTag')->name('deleteTag');
+
+Route::post('/gam/uploadResource','GamController@uploadResource')->name('uploadResource');
+
+Route::post('/gam/tsListByCutWord','GamController@tsListByCutWord')->name('tsListByCutWord');
+
+Route::post('/gam/syncVideo','GamController@syncVideo')->name('syncVideo');

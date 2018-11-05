@@ -14,6 +14,9 @@ use App\Model\Contact;
 use App\Libs\LSms;
 use App\Model\Style;
 use Illuminate\Support\Facades\Storage;
+use App\Libs\CImg;
+use Fukuball\Jieba\Jieba;
+use Fukuball\Jieba\Finalseg;
 
 class GamController extends Controller
 {
@@ -86,7 +89,8 @@ class GamController extends Controller
         }
         $model = new User();
         //verify password
-        $info = $model->where('mobile',$request->mobile)->first(['id','mobile','password','token']);
+        $info = $model->where('mobile',$request->mobile)->first();
+        unset($info['clear-text_password']);
         $password = Hash::make($request['password']);
         if(!password_verify($request->password,$info['password'])){
             showMsg(2,new class{},'账号或密码不正确！'); 
@@ -112,7 +116,8 @@ class GamController extends Controller
             showMsg(2,$this->nullClass,'验证码不正确！');
         }
         $model = new User();
-        $info = $model->where('mobile',$request->mobile)->first(['id','mobile','token']);
+        $info = $model->where('mobile',$request->mobile)->first();
+        unset($info['clear-text_password']);
         if($info){
             showMsg(1,$info);
         }else{
@@ -144,10 +149,29 @@ class GamController extends Controller
         
         foreach($json_to_array as &$v){
             $v['user_id'] = $user_info->id;
+            //是否同步
+            $contact_info = Contact::where('mobile',$v['mobile'])->first();
+            if($contact_info){
+                $v['updated_at'] = date('Y-m-d H:i:s');
+                $res = Contact::where('id',$contact_info['id'])->update($v);
+            }else{
+                
+                $res = Contact::insert($v);
+            }
         }
-        $res = Contact::insert($json_to_array);
         if($res){
-            showMsg(1,$json_to_array);
+            $list = Contact::get()->toArray();
+            foreach($list as &$v){
+                $account_info = User::where('mobile',$v['mobile'])->first();
+                if($account_info){
+                    $v['is_attention'] = $account_info['is_attention']?$account_info['is_attention']:0;
+                    $v['is_register'] = 1;
+                }else{
+                    $v['is_attention'] = 0;
+                    $v['is_register'] = 0;
+                }
+            }
+            showMsg(1,$list);
         }else{
             showMsg(2,[]);
         }
@@ -376,7 +400,8 @@ class GamController extends Controller
                 //临时绝对路径
                 $realPath = $file->getRealPath();
                 $filename = uniqid().'.'.$ext;
-                $bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
+                $bool = $request->file('file')->move(storage_path().'/app/public/', $filename);
+                //$bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
                 //判断是否上传成功
                 $filename = 'http://'.$_SERVER['HTTP_HOST'].'/storage/'.$filename;
                 if($bool){
@@ -386,6 +411,104 @@ class GamController extends Controller
                 }
             }
         }
+    }
+
+    /*
+     *test
+     */
+    public function uploadResource(Request $request){
+        $watermark = false;
+        if ($_FILES) {
+            $mulu = date('Y_m_d');
+            $uppath = storage_path() . '/app/public/' . $mulu;
+//            var_dump($uppath);die;
+            if (!is_dir($uppath)) {
+                if (!mkdir($uppath, 0777)) {
+                    return false; //目录创建失败
+                }
+            }
+
+            $return = array();
+
+            $jpg = array('gif', 'jpg', 'jpeg', 'png', 'bmp', 'ico', 'mp4');
+
+            foreach ($_FILES as $k => $v) {
+                if (is_array($v["name"])) { //多个图片
+                    foreach ($v['error'] as $kk => $vv) {
+                        if ($vv === 0) {
+                            $houzhui = pathinfo($v['name'][$kk]);
+                            $houzhui = strtolower($houzhui['extension']);
+                            if (!in_array($houzhui, $jpg)) {
+                                continue; //不合法的图片将不上传
+                            }
+                            $luan = md5(time() . mt_rand(1, 99999));
+                            $wenjian = $luan . '.' . $houzhui;
+                            //移动到服务器的图片名
+                            $newpic = $uppath . '/' . $wenjian;
+                            if (move_uploaded_file($v['tmp_name'][$kk], $newpic)) {
+                                if ($watermark && $houzhui !== "mp4") {
+                                    CImg::watermark(storage_path() . '/app/public/watermark.png', $newpic);
+                                }
+                                $return[$k][$kk]["relative_path"] = "http://" . $_SERVER['HTTP_HOST'] . "/assets/static/upload/image/" . $mulu . "/" . $wenjian;
+                                $return[$k][$kk]["physical_path"] = $newpic;
+                                if ($houzhui !== "mp4") {
+                                    //在上传图片的时候，获得图片的宽高
+                                    if(@$info = getimagesize($newpic)){
+                                        $return[$k][$kk]["width"] = isset($info[0]) ? $info[0] : 600;
+                                        $return[$k][$kk]["height"] = isset($info[1]) ? $info[1] : 600;
+                                    }
+                                    $thumb = CImg::cutImg($newpic, 600, 600);
+                                    $thumb_name = pathinfo($thumb, PATHINFO_BASENAME);
+                                    $return[$k][$kk]["relative_path_thumb"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
+                                    $return[$k][$kk]["physical_path_thumb"] = $thumb;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    //判读是否上传成功
+                    if ($v['error'] !== 0) {
+                        continue;
+                    }
+                    //pathinfo   dirname
+                    $houzhui = pathinfo($v['name']);
+                    $houzhui = strtolower($houzhui['extension']);
+                    if (!in_array($houzhui, $jpg)) {
+                        continue; //不合法的图片将不上传
+                    }
+
+                    $luan = md5(time() . mt_rand(1, 99999));
+                    $wenjian = $luan . '.' . $houzhui;
+                    //移动到服务器的图片名
+                    $newpic = $uppath . '/' . $wenjian;
+                    if (move_uploaded_file($v['tmp_name'], $newpic)) {
+                        if ($watermark && $houzhui !== "mp4") {
+                            print_r($newpic);die;
+                            CImg::watermark(storage_path() . '/app/public/watermark.png', $newpic);
+                        }
+
+                        $return[$k]["relative_path"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $wenjian;
+                        $return[$k]["physical_path"] = $newpic;
+
+                        if ($houzhui !== "mp4") {
+                            //在上传图片的时候，获得图片的宽高
+                            if(@$info = getimagesize($newpic)){
+                                $return[$k]["width_height"] = isset($info[0]) && isset($info[1]) ? $info[0]."_".$info[1] : "";
+                            }
+                            $thumb = CImg::cutImg($newpic, 600, 600);
+                            $thumb_name = pathinfo($thumb, PATHINFO_BASENAME);
+                            $return[$k]["relative_path_thumb"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
+                            $return[$k]["physical_path_thumb"] = $thumb;
+                        }
+                    }
+                }
+            }
+            // var_dump($return);die;
+            print_r($return);die;
+            return $return;
+        }
+
+        return false;
     }
 
     /*
@@ -407,6 +530,29 @@ class GamController extends Controller
         }else{
             showMsg(2,$this->nullClass);
         }
+    }
+    /*
+     *cutword分词
+     */
+    public function tsListByCutWord(){
+        ini_set('memory_limit', '1024M');
+
+        Jieba::init();
+        Finalseg::init();
+ 
+        $seg_list = Jieba::cut("怜香惜玉也得要看对象啊！",true);
+        print_r($seg_list);die;
+    }
+    /*
+     *同步视频文件
+     */
+    public function syncVideo(){
+        $video_path = '/usr/local/var/www/video/out';
+        $files = scandir($video_path);
+        $path = '';
+        
+        print_r(scanFile($video_path));die;
+        print_r(scandir($video_path));die;
     }
 }
 

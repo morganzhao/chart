@@ -35,3 +35,33 @@ function getUserInfo($token){
        showMsg(2,new \stdclass,'无效的token！');
    }
 }
+
+function scanFile($path) {
+    global $result;
+    $files = scandir($path);
+    $arr = [];
+    foreach ($files as $file) {
+        if ($file != '.' && $file != '..') {
+            if (is_dir($path . '/' . $file)) {
+                scanFile($path . '/' . $file);
+            } else {
+                $pathinfo = pathinfo($path);
+                $filename = $pathinfo['filename'];
+                $arr[] = basename($file);
+                array_push($arr,$filename);
+                $arr = array_unique($arr);
+                //获取文件内容
+                if(count($arr)>2){
+                    $intro = $arr[2];
+                }else{
+                    $intro = $arr[0];
+                }
+                $content = file_get_contents($path.'/'.$intro);
+                //array_push($arr,$content);
+                $result[$filename] = $arr;
+            }
+        }
+
+    }
+    return $result;
+}
