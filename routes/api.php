@@ -63,3 +63,6 @@ Route::post('/gam/syncVideo','GamController@syncVideo')->name('syncVideo');
 
 
 Route::any('/gam/downLoadFile','GamController@downLoadFile')->name('downLoadFile');
+
+
+Route::any('/gam/uploadVideo','GamController@uploadVideo')->name('uploadVideo');
