@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Libs\CImg;
 use Fukuball\Jieba\Jieba;
 use Fukuball\Jieba\Finalseg;
+use App\Model\Video_resource;
 
 class GamController extends Controller
 {
@@ -593,8 +594,13 @@ class GamController extends Controller
             $insert_arr[] = $arr;
         }
         
-
-        print_r($insert_arr);die;
+        $model = new Video_resource();
+        $res = $model->insert($insert_arr);
+        if($res){
+            showMsg(1,[]); 
+        }else{
+            showMsg(2,[]);
+        }
     }
 }
 
