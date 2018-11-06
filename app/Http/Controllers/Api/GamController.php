@@ -373,7 +373,8 @@ class GamController extends Controller
         $user_info = getUserInfo($request->token);
         $model = new Style();
         $style = $model->where('id',$request->id)->first();
-        $string = str_replace(','.$request->tag,'',$style->tags);
+        $string = str_replace($request->tag,'',$style->tags);
+        $string= ltrim($string,',');
         $data = [
             'tags'=>$string,
             'updated_at'=>date('Y-m-d H:i:s')
@@ -539,13 +540,17 @@ class GamController extends Controller
      *cutword分词
      */
     public function tsListByCutWord(Request $request){
-//        ini_set('memory_limit', '1024M');
+        ini_set('memory_limit', '1024M');
 
 
         $word = $request->word?$request->word:'怜香惜玉也得要看对象';
         if($word=='好玩'){
             $seg_list  = array(
-                $word
+                '好玩',
+                '的',
+                '小',
+                '小',
+                '喵',
             );
         }else{
             Jieba::init();
@@ -561,15 +566,9 @@ class GamController extends Controller
         $res = [];
         $model = new Video_resource();
         foreach($seg_list as $v){
-            $ts_list = $model->where('words',$v)->get()->toArray();
-            foreach($ts_list as &$vs){
-                $vs['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$vs['file_name'];
-            }
-            $data = array(
-                'word'=>$v,
-                'ts_list'=>$ts_list,
-            );
-            $res[] = $data;
+            $ts_info = $model->where('words',$v)->first();
+            $ts_info['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
+            $res[] = $ts_info;
         }
         if($res){
             showMsg(1,$res);
@@ -655,7 +654,7 @@ class GamController extends Controller
         if(file_exists($file_path)){
             header("Content-type:application/octet-stream");
             $filename = basename($file);
-            header("Content-Disposition:attachment;filename = ".$file);
+            header("Content-Disposition:attachment;filename = ".$file.'.ts');
             header("Accept-ranges:bytes");
             header("Accept-length:".filesize($file_path));
             readfile($file_path);
