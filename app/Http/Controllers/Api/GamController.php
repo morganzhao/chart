@@ -18,6 +18,7 @@ use App\Libs\CImg;
 use Fukuball\Jieba\Jieba;
 use Fukuball\Jieba\Finalseg;
 use App\Model\Video_resource;
+use App\Model\Discovery;
 
 class GamController extends Controller
 {
@@ -537,19 +538,50 @@ class GamController extends Controller
     /*
      *cutword分词
      */
-    public function tsListByCutWord(){
-        ini_set('memory_limit', '1024M');
+    public function tsListByCutWord(Request $request){
+//        ini_set('memory_limit', '1024M');
 
-        Jieba::init();
-        Finalseg::init();
- 
-        $seg_list = Jieba::cut("怜香惜玉也得要看对象啊！",true);
-        print_r($seg_list);die;
+
+        $word = $request->word?$request->word:'怜香惜玉也得要看对象';
+        if($word=='好玩'){
+            $seg_list  = array(
+                $word
+            );
+        }else{
+            Jieba::init();
+            Finalseg::init();
+            $seg_list = Jieba::cut($word,true);
+        }
+
+        if(is_array($seg_list)){
+
+        }else{
+            $seg_list = [];
+        }
+        $res = [];
+        $model = new Video_resource();
+        foreach($seg_list as $v){
+            $ts_list = $model->where('words',$v)->get()->toArray();
+            foreach($ts_list as &$vs){
+                $vs['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$vs['file_name'];
+            }
+            $data = array(
+                'word'=>$v,
+                'ts_list'=>$ts_list,
+            );
+            $res[] = $data;
+        }
+        if($res){
+            showMsg(1,$res);
+        }else{
+            showMsg(2,[]);
+        }
     }
     /*
      *同步视频文件
      */
     public function syncVideo(Request $request){
+        set_time_limit(0);
         $video_path = '/usr/local/var/www/video/out';
         $file = '/usr/local/var/www/chart/file/video.php';
         if($request->env==1){
@@ -559,10 +591,11 @@ class GamController extends Controller
             $env = 2;
             $file = '/usr/local/homeroot/chart/file/video.php';
         }
+        $model = new Video_resource();
         $content = @file_get_contents($file);
 
         if(!empty($content)){
-            require $file;
+            require_once $file;
             //$list = $content;
         }else{
             exit('2');
@@ -571,36 +604,96 @@ class GamController extends Controller
             file_put_contents($file,$text);
         }
         $insert_arr = [];
-        foreach($rows as $v){
-            $file_info = pathinfo($v[0], PATHINFO_EXTENSION);
-            if($file_info=='ts'){
+        $i=1;
+        foreach($rows as $k=> $v){
+//            $file_info = pathinfo($v[0], PATHINFO_EXTENSION);
+//            print_r($v);die;
+            if(count($v)>3){
+                $json_arr = json_decode($v[4],true);
                 $arr = [
-                    'url'=>$env==1?'/usr/local/var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
+                    'url'=>$env==1?'/usr/local/让var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
                     'file_name'=>$v[1],
-                    'words'=>json_decode($v[4],true)['word'],
+                    'words'=>isset($json_arr['word'])?$json_arr['word']:'',
                     'json'=>$v[4],
                     'type'=>1
                 ];
-                
+
+
             }else{
+                $json_arr = json_decode($v[2],true);
                 $arr = [
                     'url'=>$env==1?'/usr/local/var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
                     'file_name'=>$v[1],
-                    'words'=>json_decode($v[2],true)['word'],
+                    'words'=>isset($json_arr['word'])?$json_arr['word']:'',
                     'json'=>$v[2],
                     'type'=>2
                 ];
             }
-            $insert_arr[] = $arr;
+
+
+
+//            $insert_arr[] = $arr;
+
+            $i++;
+            $res = $model->insert($arr);
         }
-        
-        $model = new Video_resource();
-        $res = $model->insert($insert_arr);
+
+
         if($res){
             showMsg(1,[]); 
         }else{
             showMsg(2,[]);
         }
+    }
+
+    /*
+     * download file
+     */
+    public function downLoadFile(Request $request){
+        $file = $request->file_name;
+        $file_path = '/usr/local/homeroot/video/out/'.$file.'/'.$file.'.ts';
+        if(file_exists($file_path)){
+            header("Content-type:application/octet-stream");
+            $filename = basename($file);
+            header("Content-Disposition:attachment;filename = ".$file);
+            header("Accept-ranges:bytes");
+            header("Accept-length:".filesize($file_path));
+            readfile($file_path);
+        }else{
+            showMsg(2,[],'文件不存在');
+        }
+    }
+
+    /*
+     * upload video
+     */
+    public function uploadVideo(Request $request){
+        if(!$request->isMethod('post')){
+            showMsg(2,[],'Not Allowed');
+        }
+        $validator = Validator::make($request->all(),[
+            'video_url'=>'required',
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        //get user_info
+        $user_info = getUserInfo($request->token);
+        $model = new Discovery();
+        $data = [
+            'video_url'=>$request->video_url,
+            'owner_id'=>$user_info->id,
+            'title'=>$request->title,
+            'updated_at'=>date('Y-m-d H:i:s')
+        ];
+        $res = $model->insert($data);
+        if($res){
+            showMsg(1,$data);
+        }else{
+            showMsg(2,[]);
+        }
+
     }
 }
 

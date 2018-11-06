@@ -60,3 +60,6 @@ Route::post('/gam/uploadResource','GamController@uploadResource')->name('uploadR
 Route::post('/gam/tsListByCutWord','GamController@tsListByCutWord')->name('tsListByCutWord');
 
 Route::post('/gam/syncVideo','GamController@syncVideo')->name('syncVideo');
+
+
+Route::any('/gam/downLoadFile','GamController@downLoadFile')->name('downLoadFile');
