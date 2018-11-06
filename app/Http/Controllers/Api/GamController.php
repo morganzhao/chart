@@ -160,9 +160,11 @@ class GamController extends Controller
             }
         }
         if($res){
-            $list = Contact::get()->toArray();
+            $mobiles = array_column($json_to_array,'mobile');
+            $list = Contact::whereIn('mobile',$mobiles)->get()->toArray();
             foreach($list as &$v){
                 $account_info = User::where('mobile',$v['mobile'])->first();
+                $v['nickname'] = $account_info['nickname'];
                 if($account_info){
                     $v['is_attention'] = $v['is_attention']?$v['is_attention']:0;
                     $v['is_register'] = 1;
@@ -546,13 +548,53 @@ class GamController extends Controller
     /*
      *同步视频文件
      */
-    public function syncVideo(){
+    public function syncVideo(Request $request){
         $video_path = '/usr/local/var/www/video/out';
-        $files = scandir($video_path);
-        $path = '';
+        $file = '/usr/local/var/www/chart/file/video.php';
+        if($request->env==1){
+            $env = 1;
+            $file = '/usr/local/var/www/chart/file/video.php';
+        }else{
+            $env = 2;
+            $file = '/usr/local/homeroot/chart/file/video.php';
+        }
+        $content = @file_get_contents($file);
+
+        if(!empty($content)){
+            require $file;
+            //$list = $content;
+        }else{
+            exit('2');
+            $list = scanFile($video_path);
+            $text='<?php $rows='.var_export($list,true).';';
+            file_put_contents($file,$text);
+        }
+        $insert_arr = [];
+        foreach($rows as $v){
+            $file_info = pathinfo($v[0], PATHINFO_EXTENSION);
+            if($file_info=='ts'){
+                $arr = [
+                    'url'=>$env==1?'/usr/local/var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
+                    'file_name'=>$v[1],
+                    'words'=>json_decode($v[4],true)['word'],
+                    'json'=>$v[4],
+                    'type'=>1
+                ];
+                
+            }else{
+                $arr = [
+                    'url'=>$env==1?'/usr/local/var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
+                    'file_name'=>$v[1],
+                    'words'=>json_decode($v[2],true)['word'],
+                    'json'=>$v[2],
+                    'type'=>2
+                ];
+            }
+            $insert_arr[] = $arr;
+        }
         
-        print_r(scanFile($video_path));die;
-        print_r(scandir($video_path));die;
+
+        print_r($insert_arr);die;
     }
 }
 

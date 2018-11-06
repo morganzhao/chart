@@ -51,13 +51,16 @@ function scanFile($path) {
                 array_push($arr,$filename);
                 $arr = array_unique($arr);
                 //获取文件内容
-                if(count($arr)>2){
-                    $intro = $arr[2];
-                }else{
-                    $intro = $arr[0];
+                $intro = '';
+                foreach($arr as $vs){
+                    if($vs=='intro.txt'){
+                        $intro = $vs;
+                    }
                 }
+
                 $content = file_get_contents($path.'/'.$intro);
-                //array_push($arr,$content);
+                array_push($arr,$content);
+                $arr = array_filter($arr);
                 $result[$filename] = $arr;
             }
         }
