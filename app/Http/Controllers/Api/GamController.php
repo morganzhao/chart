@@ -19,6 +19,8 @@ use Fukuball\Jieba\Jieba;
 use Fukuball\Jieba\Finalseg;
 use App\Model\Video_resource;
 use App\Model\Discovery;
+use App\Model\Focus_relation;
+use FFMpeg\FFMpeg;
 
 class GamController extends Controller
 {
@@ -151,6 +153,8 @@ class GamController extends Controller
         
         foreach($json_to_array as &$v){
             $v['user_id'] = $user_info->id;
+            $v['created_at'] = date('Y-m-d H:i:s');
+            $v['is_attention'] = 0;
             //是否同步
             $contact_info = Contact::where('mobile',$v['mobile'])->first();
             if($contact_info){
@@ -164,7 +168,7 @@ class GamController extends Controller
         if($res){
             $mobiles = array_column($json_to_array,'mobile');
             $list = Contact::whereIn('mobile',$mobiles)->get()->toArray();
-            foreach($list as &$v){
+            foreach($json_to_array as &$v){
                 $account_info = User::where('mobile',$v['mobile'])->first();
                 $v['nickname'] = $account_info['nickname'];
                 if($account_info){
@@ -175,7 +179,7 @@ class GamController extends Controller
                     $v['is_register'] = 0;
                 }
             }
-            showMsg(1,$list);
+            showMsg(1,$json_to_array);
         }else{
             showMsg(2,[]);
         }
@@ -567,7 +571,11 @@ class GamController extends Controller
         $model = new Video_resource();
         foreach($seg_list as $v){
             $ts_info = $model->where('words',$v)->first();
-            $ts_info['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
+            if($ts_info){
+                $ts_info['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
+            }else{
+                $ts_info['words'] = $v;
+            }
             $res[] = $ts_info;
         }
         if($res){
@@ -680,6 +688,17 @@ class GamController extends Controller
         //get user_info
         $user_info = getUserInfo($request->token);
         $model = new Discovery();
+        
+        $urlParams = parse_url($request->video_url);
+        $path = $urlParams['path'];
+        $video_name = array_values(array_filter(explode('/',$path)))[1];
+        //todo
+        //get img_url
+        //$ffmpeg = \FFMpeg\FFMpeg::create();
+        //$root = storage_path().'/app/public/';
+        //$video = $ffmpeg->open($root.'video.mp4');
+        //$video->frame( \FFMpeg\Coordinate\TimeCode::fromSeconds(10))
+        //  ->save($root.'frame.jpg');
         $data = [
             'video_url'=>$request->video_url,
             'owner_id'=>$user_info->id,
@@ -689,6 +708,155 @@ class GamController extends Controller
         $res = $model->insert($data);
         if($res){
             showMsg(1,$data);
+        }else{
+            showMsg(2,[]);
+        }
+
+    }
+    /*
+     *my work
+     */
+    public function myWorksList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $user_info = getUserInfo($request->token);
+        $model = new Discovery();
+        $map = [
+            'owner_id'=>$user_info->id,
+        ];
+        $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(2,[]);
+        }
+    }
+
+    /*
+     *friend list
+     */
+    public function friendsList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $user_info = getUserInfo($request->token);
+        $model = new Discovery();
+        $map = [
+            'owner_id'=>$user_info->id,
+        ];
+        $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
+        $userModel = new User();
+        foreach($list['data'] as &$v){
+            $user_info = $userModel->userInfo($v['id']);
+            $v['nickname'] = $user_info['nickname'];
+            $v['avatar_url'] = $user_info['avatar_url'];
+        }
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(2,[]);
+        }
+    }
+
+    /*
+     *friend list
+     */
+    public function recommendList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $user_info = getUserInfo($request->token);
+        $model = new Discovery();
+        $map = [
+            'owner_id'=>$user_info->id,
+        ];
+        $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
+
+        $userModel = new User();
+        foreach($list['data'] as &$v){
+            $userInfo = $userModel->userInfo($v['owner_id']);
+            $v['nickname'] = $userInfo->nickname;
+            $v['avatar_url'] = $userInfo->avatar_url;
+        }
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(2,[]);
+        }
+    }
+
+    /*
+     *聊天列表
+     */
+    public function chartList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+
+        $user_info = getUserInfo($request->token);
+
+        $messageModel = new \App\Model\Message();
+        $map = [
+            'to'=>$user_info->id
+        ];
+        $list = $messageModel->where($map)->paginate(10)->toArray();
+        
+        $userModel = new User();
+        foreach($list['data'] as &$v){
+            $userInfo = $userModel->userInfo($v['from']);
+            $v['title'] = $userInfo->nickname;
+            $v['avatar_url'] = $userInfo->avatar_url;
+        }
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(2,[]);
+        }
+
+    }
+
+    /*
+     *chartMemberList
+     */
+    public function chartMemberList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $user_info = getUserInfo($request->token);
+        $map = [
+            'from'=>$user_info->id
+        ];
+        $model = new Focus_relation();
+        $list  = $model->where($map)->get();
+        $userModel = new User();
+        if($list){
+            foreach($list as &$v){
+                unset($v['id']);
+                //get focus user info
+                $focus_user_info = $userModel->userInfo($v['to']);
+                $v['nickname'] = $focus_user_info->nickname;
+                $v['avatar_url'] = $focus_user_info->avatar_url;
+                $v['mobile'] = $focus_user_info->mobile;
+            }
+        }
+        if($list){
+            showMsg(1,$list);
         }else{
             showMsg(2,[]);
         }

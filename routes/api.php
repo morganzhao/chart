@@ -66,3 +66,29 @@ Route::any('/gam/downLoadFile','GamController@downLoadFile')->name('downLoadFile
 
 
 Route::any('/gam/uploadVideo','GamController@uploadVideo')->name('uploadVideo');
+
+
+Route::any('/gam/myWorksList','GamController@myWorksList')->name('myWorksList');
+
+
+Route::any('/gam/friendsList','GamController@friendsList')->name('friendsList');
+
+
+Route::any('/gam/recommendList','GamController@recommendList')->name('recommendList');
+
+
+Route::any('/gam/chartList','GamController@chartList')->name('chartList');
+
+Route::any('/gam/chartMemberList','GamController@chartMemberList')->name('chartMemberList');
+
+
+/****
+ *后台管理
+ */
+Route::any('/sys/login','SysController@login')->name('login');
+
+Route::any('/sys/userList','SysController@userList')->name('userList');
+
+
+
+Route::any('/sys/chartList','SysController@chartList')->name('chartList');

@@ -35,4 +35,8 @@ class User extends Authenticatable
     public function hasUser($mobile){
         return $this->where('mobile',$mobile)->first();
     }
+
+    public function userInfo($id){
+        return $this->where('id',$id)->first();
+    }
 }
