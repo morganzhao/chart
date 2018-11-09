@@ -81,7 +81,7 @@ Route::any('/gam/chartList','GamController@chartList')->name('chartList');
 
 Route::any('/gam/chartMemberList','GamController@chartMemberList')->name('chartMemberList');
 
-
+Route::post('/gam/searchRegisteredUser','GamController@searchRegisteredUser')->name('searchRegisteredUser');
 /****
  *后台管理
  */
@@ -92,3 +92,4 @@ Route::any('/sys/userList','SysController@userList')->name('userList');
 
 
 Route::any('/sys/chartList','SysController@chartList')->name('chartList');
+

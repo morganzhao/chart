@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+ini_set('memory_limit', '1024M');
 use Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -294,18 +294,32 @@ class GamController extends Controller
         $user_info = getUserInfo($request->token);
         $map =[];
         if($user_info){
-            $map['user_id'] = $user_info->id;
+            $map['id'] = $user_info->id;
         }
         $map['id'] = $request->id;
         //get contact
-        $model = new Contact();
-        $contact = $model->where($map)->first();
-        if($contact){
+        $model = new User();
+        $user = $model->where($map)->first();
+        if(!$user){
+            showMsg(2,$this->nullClass,'联系人不存在！');
+        }
+        $focusRelationModel = new Focus_relation();
+        if($user){
             $data = [
-                'is_attention'=>1,
-                'updated_at'=>date('Y-m-d H:i:s')
+                'from'=>$user_info->id,
+                'to'=>$request->id,
+                'created_at'=>date('Y-m-d H:i:s')
             ];
-            $res = $model->where('id',$request->id)->update($data);
+            //has info
+            $relationArr = [
+                'from'=>$user_info->id,
+                'to'=>$request->id
+            ];
+            $relation = $focusRelationModel->where($relationArr)->first();
+            if($relation){
+                showMsg(1,$data);
+            }
+            $res = $focusRelationModel->insert($data);
             if($res){
                 showMsg(1,$data);
             }else{
@@ -532,6 +546,7 @@ class GamController extends Controller
         }
         $model = new User();
         $info = getUserInfo($request->token);
+        $info->meet_num = '20';
         if($info){
             $info = (array)$info;
             unset($info['clear-text_password']);
@@ -544,7 +559,7 @@ class GamController extends Controller
      *cutword分词
      */
     public function tsListByCutWord(Request $request){
-        ini_set('memory_limit', '1024M');
+        //ini_set('memory_limit', -1);
 
 
         $word = $request->word?$request->word:'怜香惜玉也得要看对象';
@@ -694,13 +709,19 @@ class GamController extends Controller
         $video_name = array_values(array_filter(explode('/',$path)))[1];
         //todo
         //get img_url
-        //$ffmpeg = \FFMpeg\FFMpeg::create();
-        //$root = storage_path().'/app/public/';
-        //$video = $ffmpeg->open($root.'video.mp4');
-        //$video->frame( \FFMpeg\Coordinate\TimeCode::fromSeconds(10))
-        //  ->save($root.'frame.jpg');
+//        $ffmpeg = \FFMpeg\FFMpeg::create();
+        $root = storage_path().'/app/public/';
+//
+//        $video = $ffmpeg->open($root.$video_name);
+//        $video->frame( \FFMpeg\Coordinate\TimeCode::fromSeconds(10))
+//          ->save($root.$video_name);
+        $video_root = $root.$video_name;
+        $img_name = explode('.',$video_name)[0].'.jpg';
+        $img_root = $root.$img_name;
+        exec("ffmpeg -i {$video_root} -y -f mjpeg -ss 1 -t 1  $img_root");
         $data = [
             'video_url'=>$request->video_url,
+            'img_url'=>'http://'.$_SERVER['HTTP_HOST'].'/storage/'.$img_name,
             'owner_id'=>$user_info->id,
             'title'=>$request->title,
             'updated_at'=>date('Y-m-d H:i:s')
@@ -729,6 +750,10 @@ class GamController extends Controller
             'owner_id'=>$user_info->id,
         ];
         $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
+        foreach($list['data'] as  &$v){
+            $v['praise_num'] = 0;
+            $v['is_praise'] = 0;
+        }
         if($list){
             showMsg(1,$list);
         }else{
@@ -787,6 +812,7 @@ class GamController extends Controller
             $userInfo = $userModel->userInfo($v['owner_id']);
             $v['nickname'] = $userInfo->nickname;
             $v['avatar_url'] = $userInfo->avatar_url;
+            $v['is_praise'] = 0;//todo
         }
         if($list){
             showMsg(1,$list);
@@ -812,14 +838,17 @@ class GamController extends Controller
         $map = [
             'to'=>$user_info->id
         ];
-        $list = $messageModel->where($map)->paginate(10)->toArray();
-        
+
         $userModel = new User();
-        foreach($list['data'] as &$v){
-            $userInfo = $userModel->userInfo($v['from']);
-            $v['title'] = $userInfo->nickname;
-            $v['avatar_url'] = $userInfo->avatar_url;
+        $list = $messageModel->where($map)->get();
+        if($list){
+            foreach($list as &$v){
+                $userInfo = $userModel->userInfo($v['from']);
+                $v['title'] = $userInfo->nickname;
+                $v['avatar_url'] = $userInfo->avatar_url;
+            }
         }
+        
         if($list){
             showMsg(1,$list);
         }else{
@@ -861,6 +890,36 @@ class GamController extends Controller
             showMsg(2,[]);
         }
 
+    }
+
+    /*
+     *search sys user
+     */
+    public function searchRegisteredUser(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $keyword = $request->keyword;
+        if($keyword){
+            $map = [
+                ['mobile','like',"%$keyword%"],
+                ['role','<>',9]
+            ];
+        }else{
+            $map = [
+                ['role','<>',9]
+            ];
+        }
+        $userModel = new User();
+        $list = $userModel->where($map)->get()->toArray();
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(2,[]);
+        }
     }
 }
 
