@@ -818,7 +818,7 @@ class GamController extends Controller
             $v['nickname'] = $userInfo->nickname;
             $v['avatar_url'] = $userInfo->avatar_url;
             $v['is_praise'] = 0;//todo
-            $v[['praise_num'] = 0;
+            $v['praise_num'] = 0;
         }
         if($list){
             showMsg(1,$list);
