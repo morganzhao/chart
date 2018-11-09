@@ -21,6 +21,8 @@ use App\Model\Video_resource;
 use App\Model\Discovery;
 use App\Model\Focus_relation;
 use FFMpeg\FFMpeg;
+use Lizhichao\Word\VicWord;
+
 
 class GamController extends Controller
 {
@@ -561,6 +563,8 @@ class GamController extends Controller
     public function tsListByCutWord(Request $request){
         //ini_set('memory_limit', -1);
 
+        define('_VIC_WORD_DICT_PATH_',base_path().'/vendor/lizhichao/word/Data/dict.igb');
+        $fc = new VicWord('igb');
 
         $word = $request->word?$request->word:'怜香惜玉也得要看对象';
         if($word=='好玩'){
@@ -572,9 +576,10 @@ class GamController extends Controller
                 '喵',
             );
         }else{
-            Jieba::init();
-            Finalseg::init();
-            $seg_list = Jieba::cut($word,true);
+            //Jieba::init();
+            //Finalseg::init();
+            //$seg_list = Jieba::cut($word,true);
+            $seg_list = $fc->getShortWord($word);
         }
 
         if(is_array($seg_list)){

@@ -92,6 +92,7 @@ class ComposerStaticInit823a83ad61f34174375d8f61e334739c
         ),
         'L' => 
         array (
+            'Lizhichao\\Word\\' => 15,
             'League\\Flysystem\\' => 17,
             'Laravel\\Tinker\\' => 15,
         ),
@@ -257,6 +258,10 @@ class ComposerStaticInit823a83ad61f34174375d8f61e334739c
         array (
             0 => __DIR__ . '/..' . '/monolog/monolog/src/Monolog',
         ),
+        'Lizhichao\\Word\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/lizhichao/word/Lib',
+        ),
         'League\\Flysystem\\' => 
         array (
             0 => __DIR__ . '/..' . '/league/flysystem/src',
@@ -410,6 +415,7 @@ class ComposerStaticInit823a83ad61f34174375d8f61e334739c
         'App\\Console\\Kernel' => __DIR__ . '/../..' . '/app/Console/Kernel.php',
         'App\\Exceptions\\Handler' => __DIR__ . '/../..' . '/app/Exceptions/Handler.php',
         'App\\Http\\Controllers\\Api\\GamController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/GamController.php',
+        'App\\Http\\Controllers\\Api\\SysController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/SysController.php',
         'App\\Http\\Controllers\\Auth\\ForgotPasswordController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/ForgotPasswordController.php',
         'App\\Http\\Controllers\\Auth\\LoginController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/LoginController.php',
         'App\\Http\\Controllers\\Auth\\RegisterController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/RegisterController.php',
@@ -432,6 +438,8 @@ class ComposerStaticInit823a83ad61f34174375d8f61e334739c
         'App\\Model\\Blog' => __DIR__ . '/../..' . '/app/Model/Blog.php',
         'App\\Model\\Contact' => __DIR__ . '/../..' . '/app/Model/Contact.php',
         'App\\Model\\Discovery' => __DIR__ . '/../..' . '/app/Model/Discovery.php',
+        'App\\Model\\Focus_relation' => __DIR__ . '/../..' . '/app/Model/Focus_relation.php',
+        'App\\Model\\Message' => __DIR__ . '/../..' . '/app/Model/Message.php',
         'App\\Model\\Style' => __DIR__ . '/../..' . '/app/Model/Style.php',
         'App\\Model\\Video_resource' => __DIR__ . '/../..' . '/app/Model/Video_resource.php',
         'App\\Providers\\AppServiceProvider' => __DIR__ . '/../..' . '/app/Providers/AppServiceProvider.php',
@@ -2047,6 +2055,8 @@ class ComposerStaticInit823a83ad61f34174375d8f61e334739c
         'League\\Flysystem\\Util\\ContentListingFormatter' => __DIR__ . '/..' . '/league/flysystem/src/Util/ContentListingFormatter.php',
         'League\\Flysystem\\Util\\MimeType' => __DIR__ . '/..' . '/league/flysystem/src/Util/MimeType.php',
         'League\\Flysystem\\Util\\StreamHasher' => __DIR__ . '/..' . '/league/flysystem/src/Util/StreamHasher.php',
+        'Lizhichao\\Word\\VicDict' => __DIR__ . '/..' . '/lizhichao/word/Lib/VicDict.php',
+        'Lizhichao\\Word\\VicWord' => __DIR__ . '/..' . '/lizhichao/word/Lib/VicWord.php',
         'Mockery' => __DIR__ . '/..' . '/mockery/mockery/library/Mockery.php',
         'Mockery\\Adapter\\Phpunit\\Legacy\\TestListenerForV5' => __DIR__ . '/..' . '/mockery/mockery/library/Mockery/Adapter/Phpunit/Legacy/TestListenerForV5.php',
         'Mockery\\Adapter\\Phpunit\\Legacy\\TestListenerForV6' => __DIR__ . '/..' . '/mockery/mockery/library/Mockery/Adapter/Phpunit/Legacy/TestListenerForV6.php',
