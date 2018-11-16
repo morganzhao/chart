@@ -82,7 +82,23 @@ Route::any('/gam/chartList','GamController@chartList')->name('chartList');
 Route::any('/gam/chartMemberList','GamController@chartMemberList')->name('chartMemberList');
 
 Route::post('/gam/searchRegisteredUser','GamController@searchRegisteredUser')->name('searchRegisteredUser');
-/****
+
+Route::any('/gam/videoDetail','GamController@videoDetail')->name('videoDetail');
+
+
+Route::any('/gam/message','GamController@message')->name('message');
+
+
+Route::any('/gam/messageList','GamController@messageList')->name('messageList');
+
+
+Route::any('/gam/receiveMessage','GamController@receiveMessage')->name('receiveMessage');
+
+
+Route::any('/gam/chartMessageList','GamController@chartMessageList')->name('chartMessageList');
+
+Route::post('/gam/syncStyle','GamController@syncStyle')->name('syncStyle');
+/***
  *后台管理
  */
 Route::any('/sys/login','SysController@login')->name('login');

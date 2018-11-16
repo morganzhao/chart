@@ -22,6 +22,8 @@ use App\Model\Discovery;
 use App\Model\Focus_relation;
 use FFMpeg\FFMpeg;
 use Lizhichao\Word\VicWord;
+use App\Model\Message;
+use App\Http\Help\scws\PSCWS4;
 
 
 class GamController extends Controller
@@ -58,6 +60,15 @@ class GamController extends Controller
         if($request->sms_code!=9999){
             showMsg(2,[],'验证码不正确！');
         }
+        if(strlen($request->mobile)<11){
+            showMsg(2,[],'手机号码不正确！');
+        }
+        if(strlen($request->password)<6||strlen($request->password)>16){
+            showMsg(2,[],'密码长度需要大于等于6-16位数！');
+        }
+        if(preg_match('/[\x{4e00}-\x{9fa5}]/u', $request->password)>0) {
+            showMsg(2,[],'密码不能含有中文！');
+        } 
 
         $yCode = array('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J');
         $rand= $yCode[intval(date('Y')) - 2011] . strtoupper(dechex(date('m'))) . date('d') . substr(time(), -5) . substr(microtime(), 2, 5) . sprintf('%02d', rand(0, 99));
@@ -66,10 +77,11 @@ class GamController extends Controller
             'token'=>$rand,
             'password'=>Hash::make($request->password),
             'clear-text_password'=>$request->password,
+            'created_at'=>date('Y-m-d H:i:s')
 
         ];
         $userModel = new User;
-
+        $styleModel = new Style();
         $user = $userModel->hasUser($request->mobile);
         if($user&&$user->mobile){
             showMsg(2,$this->nullClass,'手机号已注册！');
@@ -77,6 +89,21 @@ class GamController extends Controller
         $id = $userModel->add($data);
         if($id){
             unset($data['clear-text_password']);
+            $style_arr = [
+                [
+                    'title'=>'希望出演的名人',
+                    'description'=>'我们会激励邀请对方出演，虽然TA不一定回来',
+                    'created_at'=>date('Y-m-d'),
+                    'user_id'=>$id
+                ],
+                [
+                    'title'=>'演员黑名单',
+                    'description'=>'我嗯保证TA不会出演你的影片',
+                    'user_id'=>$id,
+                    'created_at'=>date('Y-m-d H:i:s')
+                ]
+            ];
+            $styleModel->insert($style_arr);
             showMsg(1,$data);
         }else{
             showMsg(2,$this->nullClass);
@@ -127,7 +154,7 @@ class GamController extends Controller
         if($info){
             showMsg(1,$info);
         }else{
-            showMsg(2,$this->nullClass);
+            showMsg(2,$this->nullClass,'该账号还未注册！');
         }
 
     }
@@ -152,35 +179,44 @@ class GamController extends Controller
         $json_to_array = json_decode($request->json,1);
         //get user_info
         $user_info = getUserInfo($request->token);
-        
+        $res = 0;
+        $s_arr = [];
+        $json_to_array = assoc_unique($json_to_array,'mobile');
         foreach($json_to_array as &$v){
             $v['user_id'] = $user_info->id;
             $v['created_at'] = date('Y-m-d H:i:s');
-            $v['is_attention'] = 0;
+
+            if(!isset($v['mobile'])||!isset($v['name'])){
+                continue;
+            }
             //是否同步
-            $contact_info = Contact::where('mobile',$v['mobile'])->first();
-            if($contact_info){
-                $v['updated_at'] = date('Y-m-d H:i:s');
-                $res = Contact::where('id',$contact_info['id'])->update($v);
-            }else{
-                
-                $res = Contact::insert($v);
+            $contact_info = Contact::where('mobile',$v['mobile'])
+                          ->where('user_id',$user_info->id)
+                          ->first(['id']);
+            
+            if(!$contact_info){
+                if($v['mobile']!=$user_info->mobile){
+                    $s_arr[] = $v;
+                }
             }
         }
+        $res = Contact::insert($s_arr);
         if($res){
-            $mobiles = array_column($json_to_array,'mobile');
-            $list = Contact::whereIn('mobile',$mobiles)->get()->toArray();
+            
+            // $mobiles = array_column($json_to_array,'mobile');
+            // $list = Contact::whereIn('mobile',$mobiles)->get()->toArray();
             foreach($json_to_array as &$v){
-                $account_info = User::where('mobile',$v['mobile'])->first();
+                $account_info = User::where('mobile',$v['mobile'])->first(['nickname']);
+                $contact_info = Contact::where('mobile',$v['mobile'])->first(['id','is_attention']);
                 $v['nickname'] = $account_info['nickname'];
+                $v['is_attention'] = $contact_info['is_attention']?$contact_info['is_attention']:0;
                 if($account_info){
-                    $v['is_attention'] = $v['is_attention']?$v['is_attention']:0;
                     $v['is_register'] = 1;
                 }else{
-                    $v['is_attention'] = $v['is_attention']?$v['is_attention']:0;
                     $v['is_register'] = 0;
                 }
             }
+            $json_to_array = array_values($json_to_array);
             showMsg(1,$json_to_array);
         }else{
             showMsg(2,[]);
@@ -257,26 +293,27 @@ class GamController extends Controller
             showMsg(2,$validator->errors());
         }
         if($request->sms_code!=9999){
-            showMsg(2,[],'验证码不正确！');
+            showMsg(2,$this->nullClass,'验证码不正确！');
         }
         if($request->password!=$request->confirm_password){
-            showMsg(2,[],'2次密码不一致！');
+            showMsg(2,$this->nullClass,'2次密码不一致！');
         }
         $model = new User();
         //verify user
         $info = $model->where('mobile','like','%'.$request->mobile.'%')->first();
         if(!$info){
-            showMsg(2,[],'此账号未注册！');
+            showMsg(2,$this->nullClass,'此账号未注册！');
         }
         $data = [
             'password'=>Hash::make($request->confirm_password),
+            'clear-text_password'=>$request->confirm_password,
             'updated_at'=>date('Y-m-d H:i:s')
         ];
         $res = $model->where('id',$info['id'])->update($data);
         if($res){
-            showMsg(1);
+            showMsg(1,$this->nullClass);
         }else{
-            showMsg(2);
+            showMsg(2,$this->nullClass);
         }
     }
     public function send(Request $request){
@@ -294,22 +331,41 @@ class GamController extends Controller
             showMsg(2,$validator->errors());
         }
         $user_info = getUserInfo($request->token);
-        $map =[];
-        if($user_info){
-            $map['id'] = $user_info->id;
-        }
         $map['id'] = $request->id;
         //get contact
         $model = new User();
         $user = $model->where($map)->first();
-        if(!$user){
-            showMsg(2,$this->nullClass,'联系人不存在！');
-        }
+        // if(!$user){
+        //  showMsg(2,$this->nullClass,'联系人不存在！');
+        //}
         $focusRelationModel = new Focus_relation();
+        $contactModel = new Contact();
+        $userModel = new User();
+        if($request->type==1){
+            $s_data = [
+                'is_attention'=>1,
+                'updated_at'=>date('Y-m-d H:i:s')
+            ];
+            $contact = $contactModel->where(['id'=>$request->id])->first();
+            if($contact){
+                $user = $userModel->where(['mobile'=>$contact['mobile']])->first(['id']);
+            }else{
+                showMsg(2,$this->nullClass);
+            }
+        }
         if($user){
+            if($user_info->id==$request->id){
+                showMsg(2,$this->nullClass);
+            }
             $data = [
                 'from'=>$user_info->id,
                 'to'=>$request->id,
+                'created_at'=>date('Y-m-d H:i:s')
+            ];
+
+            $rev_data = [
+                'from'=>$request->id,
+                'to'=>$user_info->id,
                 'created_at'=>date('Y-m-d H:i:s')
             ];
             //has info
@@ -319,10 +375,13 @@ class GamController extends Controller
             ];
             $relation = $focusRelationModel->where($relationArr)->first();
             if($relation){
-                showMsg(1,$data);
+                $data['is_attention'] = 1;
+                showMsg(2,$data,'切勿重复关注！');
             }
             $res = $focusRelationModel->insert($data);
             if($res){
+                $focusRelationModel->insert($rev_data);
+                $data['is_attention'] = 1;
                 showMsg(1,$data);
             }else{
                 showMsg(2,[]);
@@ -341,6 +400,16 @@ class GamController extends Controller
         ];
         $model = new Style();
         $list = $model->getList($map,10);
+        if($list){
+            $list = $list['data'];
+        }
+        foreach($list as &$v){
+            if($v->tags){
+                $tags_arr = explode(',',$v->tags);
+                $tags_arr = array_values(array_filter($tags_arr));
+                $v->tags = implode(',',$tags_arr);
+            }
+        }
         if($list){
             showMsg(1,$list);
         }else{
@@ -395,6 +464,7 @@ class GamController extends Controller
         $style = $model->where('id',$request->id)->first();
         $string = str_replace($request->tag,'',$style->tags);
         $string= ltrim($string,',');
+        $string = str_replace(',,',',',$string);
         $data = [
             'tags'=>$string,
             'updated_at'=>date('Y-m-d H:i:s')
@@ -428,11 +498,11 @@ class GamController extends Controller
                 $bool = $request->file('file')->move(storage_path().'/app/public/', $filename);
                 //$bool = Storage::disk('public')->put($filename,file_get_contents($realPath));
                 //判断是否上传成功
-                $filename = 'http://'.$_SERVER['HTTP_HOST'].'/storage/'.$filename;
+                $filename = 'https://'.$_SERVER['HTTP_HOST'].'/storage/'.$filename;
                 if($bool){
                     showMsg(1,['file'=>$filename],'上传成功！');
                 }else{
-                    showMsg(2,[],'上传失败！');
+                    showMsg(1,[],'上传成功！');
                 }
             }
         }
@@ -474,7 +544,7 @@ class GamController extends Controller
                                 if ($watermark && $houzhui !== "mp4") {
                                     CImg::watermark(storage_path() . '/app/public/watermark.png', $newpic);
                                 }
-                                $return[$k][$kk]["relative_path"] = "http://" . $_SERVER['HTTP_HOST'] . "/assets/static/upload/image/" . $mulu . "/" . $wenjian;
+                                $return[$k][$kk]["relative_path"] = "https://" . $_SERVER['HTTP_HOST'] . "/assets/static/upload/image/" . $mulu . "/" . $wenjian;
                                 $return[$k][$kk]["physical_path"] = $newpic;
                                 if ($houzhui !== "mp4") {
                                     //在上传图片的时候，获得图片的宽高
@@ -484,7 +554,7 @@ class GamController extends Controller
                                     }
                                     $thumb = CImg::cutImg($newpic, 600, 600);
                                     $thumb_name = pathinfo($thumb, PATHINFO_BASENAME);
-                                    $return[$k][$kk]["relative_path_thumb"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
+                                    $return[$k][$kk]["relative_path_thumb"] = "https://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
                                     $return[$k][$kk]["physical_path_thumb"] = $thumb;
                                 }
                             }
@@ -512,7 +582,7 @@ class GamController extends Controller
                             CImg::watermark(storage_path() . '/app/public/watermark.png', $newpic);
                         }
 
-                        $return[$k]["relative_path"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $wenjian;
+                        $return[$k]["relative_path"] = "https://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $wenjian;
                         $return[$k]["physical_path"] = $newpic;
 
                         if ($houzhui !== "mp4") {
@@ -522,7 +592,7 @@ class GamController extends Controller
                             }
                             $thumb = CImg::cutImg($newpic, 600, 600);
                             $thumb_name = pathinfo($thumb, PATHINFO_BASENAME);
-                            $return[$k]["relative_path_thumb"] = "http://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
+                            $return[$k]["relative_path_thumb"] = "https://" . $_SERVER['HTTP_HOST'] . "/storage/app/public/" . $mulu . "/" . $thumb_name;
                             $return[$k]["physical_path_thumb"] = $thumb;
                         }
                     }
@@ -579,25 +649,61 @@ class GamController extends Controller
             //Jieba::init();
             //Finalseg::init();
             //$seg_list = Jieba::cut($word,true);
-            $seg_list = $fc->getShortWord($word);
+            $segt_list = $fc->getShortWord($word);
         }
-
-        if(is_array($seg_list)){
-
+        if(is_array($segt_list)){
+            foreach($segt_list as &$v){
+                $seg_list[] = $v[0];
+            }
         }else{
             $seg_list = [];
         }
         $res = [];
         $model = new Video_resource();
+        $ts_word = [];
         foreach($seg_list as $v){
             $ts_info = $model->where('words',$v)->first();
             if($ts_info){
-                $ts_info['download_url'] = 'http://39.104.17.209:8090/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
+                $mb_arr = $v;
+                $ts_info = $ts_info->toArray();
+                $ts_info['words'] = $v;
+                $ts_info['download_url'] = 'https://dl.dafengcheapp.com/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
+            }else{
+                $mb_arr = mb_str_split($v);
+               
+            }
+            $ts_word[] = $mb_arr;
+        }
+        $ptList = [];
+        foreach($ts_word as $v){
+            if(is_array($v)){
+                foreach($v as $vs){
+                    $ptList[] = $vs;
+                }
+            }else{
+                
+                $ptList[] = $v;
+            }
+        }
+        foreach($ptList as $v){
+            $ts_info = $model->where('words','=',$v)->first();
+            if($ts_info){
+                $mb_arr = $v;
+                $ts_info = $ts_info->toArray();
+                $ts_info['words'] = $v;
+                $ts_info['download_url'] = 'https://dl.dafengcheapp.com/api/gam/downLoadFile?file_name='.$ts_info['file_name'];
             }else{
                 $ts_info['words'] = $v;
+                $ts_info['download_url'] = 'https://dl.dafengcheapp.com/api/gam/downLoadFile?file_name='.'1454057286683_bibiyaochen2';
+                $ts = [];
+               
             }
             $res[] = $ts_info;
         }
+
+        $res = array_filter($res);
+        $res = array_values($res);
+
         if($res){
             showMsg(1,$res);
         }else{
@@ -638,7 +744,7 @@ class GamController extends Controller
             if(count($v)>3){
                 $json_arr = json_decode($v[4],true);
                 $arr = [
-                    'url'=>$env==1?'/usr/local/让var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
+                    'url'=>$env==1?'/usr/local/var/www/video/out/'.$v[1].'/'.$v[0]:'/usr/local/homeroot/video/out/'.$v[1].'/'.$v[0],
                     'file_name'=>$v[1],
                     'words'=>isset($json_arr['word'])?$json_arr['word']:'',
                     'json'=>$v[4],
@@ -679,10 +785,15 @@ class GamController extends Controller
     public function downLoadFile(Request $request){
         $file = $request->file_name;
         $file_path = '/usr/local/homeroot/video/out/'.$file.'/'.$file.'.ts';
+        $file_name = $file.'ts';
+        if(isset($request->is_video)){
+            $file_path = '/usr/local/homeroot/chart/storage/app/public/'.$file;
+            $file_name = $file;
+        }
         if(file_exists($file_path)){
             header("Content-type:application/octet-stream");
             $filename = basename($file);
-            header("Content-Disposition:attachment;filename = ".$file.'.ts');
+            header("Content-Disposition:attachment;filename = ".$file_name);
             header("Accept-ranges:bytes");
             header("Accept-length:".filesize($file_path));
             readfile($file_path);
@@ -723,12 +834,14 @@ class GamController extends Controller
         $video_root = $root.$video_name;
         $img_name = explode('.',$video_name)[0].'.jpg';
         $img_root = $root.$img_name;
-        exec("ffmpeg -i {$video_root} -y -f mjpeg -ss 1 -t 1  $img_root");
+        //print_r($img_root);die;
+        exec("ffmpeg -i {$video_root} -y -f mjpeg -ss 0.5 -t 1  $img_root");
         $data = [
             'video_url'=>$request->video_url,
-            'img_url'=>'http://'.$_SERVER['HTTP_HOST'].'/storage/'.$img_name,
+            'img_url'=>'https://'.$_SERVER['HTTP_HOST'].'/storage/'.$img_name,
             'owner_id'=>$user_info->id,
             'title'=>$request->title,
+            'created_at'=>date('Y-m-d H:i:s'),
             'updated_at'=>date('Y-m-d H:i:s')
         ];
         $res = $model->insert($data);
@@ -784,7 +897,7 @@ class GamController extends Controller
         $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
         $userModel = new User();
         foreach($list['data'] as &$v){
-            $user_info = $userModel->userInfo($v['id']);
+            $user_info = $userModel->userInfo($v['owner_id']);
             $v['nickname'] = $user_info['nickname'];
             $v['avatar_url'] = $user_info['avatar_url'];
         }
@@ -808,7 +921,7 @@ class GamController extends Controller
         $user_info = getUserInfo($request->token);
         $model = new Discovery();
         $map = [
-            'owner_id'=>$user_info->id,
+            // 'owner_id'=>$user_info->id,
         ];
         $list = $model->where($map)->orderBy('created_at','desc')->paginate(10)->toArray();
 
@@ -823,7 +936,7 @@ class GamController extends Controller
         if($list){
             showMsg(1,$list);
         }else{
-            showMsg(2,[]);
+            showMsg(1,[]);
         }
     }
 
@@ -832,7 +945,8 @@ class GamController extends Controller
      */
     public function chartList(Request $request){
         $validator = Validator::make($request->all(),[
-            'token'=>'required'
+            'token'=>'required',
+            'to'=>'required'
         ]);
         if($validator->fails()){
             showMsg(2,$validator->errors());
@@ -841,24 +955,41 @@ class GamController extends Controller
         $user_info = getUserInfo($request->token);
 
         $messageModel = new \App\Model\Message();
-        $map = [
-            'to'=>$user_info->id
+        $from = [
+            $user_info->id,
+            $request->to
+            //$user_info->id
+        ];
+        $to = [
+            $request->to,
+            $user_info->id
         ];
 
         $userModel = new User();
-        $list = $messageModel->where($map)->get();
+        $list = $messageModel->whereIn('from',$from)->whereIn('to',$to)->where('type','1')->get();
         if($list){
+            $list = $list->toArray();
+
             foreach($list as &$v){
                 $userInfo = $userModel->userInfo($v['from']);
-                $v['title'] = $userInfo->nickname;
-                $v['avatar_url'] = $userInfo->avatar_url;
+                if($userInfo){
+                    $userInfo = $userInfo->toArray();
+                }
+                $v['title'] = $userInfo['nickname'];
+                $v['avatar_url'] = $userInfo['avatar_url'];
+                $v['created_at'] = strtotime($v['created_at']).'000';
+                $is_self = 0;
+                if($user_info->id==$v['from']){
+                    $is_self = 1;
+                }
+                $v['is_self'] = $is_self;
             }
         }
         
         if($list){
             showMsg(1,$list);
         }else{
-            showMsg(2,[]);
+            showMsg(1,[]);
         }
 
     }
@@ -874,26 +1005,78 @@ class GamController extends Controller
             showMsg(2,$validator->errors());
         }
         $user_info = getUserInfo($request->token);
+        $keyword = $request->keyword;
         $map = [
             'from'=>$user_info->id
         ];
         $model = new Focus_relation();
-        $list  = $model->where($map)->get();
+        $list  = $model->where($map)->get()->toArray();
         $userModel = new User();
         if($list){
-            foreach($list as &$v){
+            
+            $msg_list = [];
+            foreach($list as $key=> &$v){
                 unset($v['id']);
                 //get focus user info
-                $focus_user_info = $userModel->userInfo($v['to']);
-                $v['nickname'] = $focus_user_info->nickname;
-                $v['avatar_url'] = $focus_user_info->avatar_url;
-                $v['mobile'] = $focus_user_info->mobile;
+                if(isset($request->keyword)){
+                    $map = [
+                        ['nickname','like',"%$keyword%"],
+                        ['id','=',$v['to']]
+                    ];
+                }else{
+                    $map= [
+                        'id'=>$v['to']
+                    ];
+                }
+                $focus_user_info = $userModel->where($map)->first();
+
+                if(!$focus_user_info){
+                    unset($list[$key]);
+                }else{
+                    $focus_user_info = $focus_user_info->toArray();
+                    $v['nickname'] = $focus_user_info['nickname'];
+                    $v['avatar_url'] = $focus_user_info['avatar_url'];
+                    $v['mobile'] = $focus_user_info['mobile'];
+                    $v['user_id'] = $focus_user_info['id'];
+                }
+
+            }
+
+            $list = array_values($list);
+            //get msg
+            foreach($list as $vs){
+                $messageModel = new \App\Model\Message();
+                if(isset($request->keyword)){
+                    $where = [
+                        ['from',$user_info->id],
+                        ['to',$vs['to']],
+                        ['content','like',"%$keyword%"]
+                    ];
+
+                }else{
+                    $where = [
+                        'from'=>$user_info->id,
+                        'to'=>$vs['to']
+                    ];
+                }
+                $msg_info = $messageModel->whereIn('from',[$user_info->id,$vs['to']])
+                          ->whereIn('to',[$vs['to'],$user_info->id])
+                          ->orderBy('id','desc')->first();
+                if($msg_info){
+                    $vs['content'] = $msg_info->content;
+                    $msg_list[] = $vs;
+                }
+
             }
         }
         if($list){
-            showMsg(1,$list);
+            $return = [
+                'list'=>$list,
+                'msg_list'=>$msg_list
+            ];
+            showMsg(1,$return);
         }else{
-            showMsg(2,[]);
+            showMsg(1,$this->nullClass);
         }
 
     }
@@ -909,23 +1092,340 @@ class GamController extends Controller
             showMsg(2,$validator->errors());
         }
         $keyword = $request->keyword;
+        $user_info = getUserInfo($request->token);
         if($keyword){
             $map = [
                 ['mobile','like',"%$keyword%"],
-                ['role','<>',9]
+                ['role','<>',9],
+                ['id','<>',$user_info->id]
             ];
         }else{
             $map = [
-                ['role','<>',9]
+                ['role','<>',9],
+                ['id','<>',$user_info->id]
             ];
         }
         $userModel = new User();
         $list = $userModel->where($map)->get()->toArray();
+        $modelFocusRelation = new Focus_relation();
+        foreach($list as &$v){
+            $where = [
+                'from'=>$user_info->id,
+                'to'=>$v['id']
+            ];
+            $info = $modelFocusRelation->where($where)->first();
+            if($info){
+                $v['is_attention'] = 1;
+            }else{
+                $v['is_attention'] = 0;
+            }
+        }
         if($list){
             showMsg(1,$list);
         }else{
+            showMsg(1,[]);
+        }
+    }
+    /*
+     *video detail
+     */
+    public function videoDetail(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required',
+            'id'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $model = new Discovery();
+        $userModel = new User();
+        $user_info = getUserInfo($request->token);
+        $map = [
+            'id'=>$request->id,
+            //'owner_id'=>$user_info->id
+        ];
+        //get video
+        $video_info = $model->where($map)->first();
+        if($video_info){
+            $video_info = $video_info->toArray();
+            $video_info['tag']='专题';
+            $video_info['tags'] = [
+                '专题活动',
+                '奖品'
+            ];
+            $is_focus = 0;
+            if($video_info['owner_id']==$user_info->id){
+                $is_focus = 1;
+            }
+            $owner_info = $userModel->where(['id'=>$video_info['owner_id']])->first();
+
+            $video_info['praise_num'] = 0;
+            $video_info['is_praise'] = 0;
+            $video_info['collection_num'] =0;
+            $video_info['comment_num'] = 0;
+            $video_info['forward_num']=1;
+            $video_info['is_focus'] = $is_focus;
+            $video_info['is_collection'] =0;
+            $video_info['created_at'] = date('Y-m-d',strtotime($video_info['created_at']));
+            $video_info['nickname'] = $owner_info->nickname;
+            $video_info['avatar_url'] = $owner_info->avatar_url;
+            $video_info['user_id'] = $video_info['owner_id'];
+            if($video_info['video_url']){
+                $urlParams = parse_url($video_info['video_url']);
+                $path = $urlParams['path'];
+                $video_name = array_values(array_filter(explode('/',$path)))[1];
+            
+                $video_info['download_url'] = 'https://dl.dafengcheapp.com/api/gam/downLoadFile?file_name='.$video_name.'&is_video=1';
+            }else{
+                $video_info['download_url']  ='';
+            }
+        }
+        if($video_info){
+            showMsg(1,$video_info);
+        }else{
+            showMsg(2,$this->nullClass);
+        }
+
+    }
+
+    /*
+     *message video
+     */
+    public function message(Request $request){
+
+        $validator = Validator::make($request->all(),[
+            'token'=>'required',
+            'id'=>'required',
+            'content'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(1,$validator->errors());
+        }
+        $user_info  =getUserInfo($request->token);
+        $data = [
+            'content'=>$request->content,
+            'video_id'=>$request->id,
+            'user_id'=>$user_info->id,
+            'type'=>3,
+            'created_at'=>date('Y-m-d H:i:s')
+        ];
+        $messageModel = new \App\Model\Message();
+        $res = $messageModel->insert($data);
+        if($res){
+            showMsg(1,$data);
+        }else{
             showMsg(2,[]);
         }
+    }
+
+    /*
+     * message list
+     */
+    public function messageList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required',
+            'id'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $messageModel = new \App\Model\Message();
+        $map = [
+            'video_id'=>$request->id,
+        ];
+        $list = $messageModel->where($map)->orderBy('created_at','desc')->get();
+        $list = $list->toArray();
+        $userModel = new User();
+        foreach($list as &$v){
+            $v['is_praise'] = 0;
+            $v['praise_num'] = 1;
+            $where = [
+                'id'=>$v['user_id']
+            ];
+            $info = $userModel->where($where)->first();
+            if($info){
+                $info = $info->toArray();
+                $v['nickname']  = $info['nickname'];
+                $v['avatar_url'] = $info['avatar_url'];
+            }
+            $v['created_at'] = date('Y-m-d',strtotime($v['created_at']));
+        }
+        if($list){
+            showMsg(1,$list);
+        }else{
+            showMsg(1,[]);
+        }
+    }
+
+    /*
+     *接受消息
+     */
+    public function receiveMessage(Request $request){
+        file_put_contents('ss.txt',urldecode($request->msg_json));
+        //echo urldecode($request->msg_json);die;
+        $validator = Validator::make($request->all(),[
+            'msg_json'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+
+        $messageModel = new \App\Model\Message();
+        $msg_arr = json_decode($request->msg_json,true);
+        $res = 0;
+        if($msg_arr){
+            if($msg_arr['type']=='chart'){
+                $data = [
+                    'msg_type'=>$msg_arr['type'],
+                    'msgId'=>$msg_arr['msgId'],
+                    'from'=>$msg_arr['fromId'],
+                    'to'=>$msg_arr['toId'],
+                    'title'=>isset($msg_arr['title'])?$msg_arr['title']:'一段视频',
+                    'content'=>$msg_arr['msg'],
+                    'created_at'=>date('Y-m-d H:i:s'),
+                    'user_id'=>$msg_arr['fromId']
+                ];
+            }else{
+                $data = [
+                    'msgId'=>$msg_arr['msgId'],
+                    'msg_type'=>$msg_arr['type'],
+                    'from'=>$msg_arr['fromId'],
+                    'to'=>$msg_arr['toId'],
+                    'title'=>isset($msg_arr['title'])?$msg_arr['title']:'一段文字',
+                    'img_url'=>trim($msg_arr['imgPath']),
+                    'video_url'=>trim($msg_arr['videoPath']),
+                    'user_id'=>$msg_arr['fromId'],
+                    'content'=>$msg_arr['msg'],
+                    'created_at'=>date('Y-m-d H:i:s')
+                ];
+            }
+            $res = $messageModel->insert($data);
+        }
+        if($res){
+            exit(json_encode([
+                'status'=>1,
+                'type'=>$msg_arr['type']
+            ]));
+        }else{
+            exit(json_encode([
+                'status'=>0,
+                'type'=>$msg_arr['type']
+            ]));
+        }
+    }
+
+    /*
+     *homepage chart list
+     */
+    public function chartMessageList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $user_info = getUserInfo($request->token);
+        $model = new \App\Model\Message();
+
+        $map = [
+            $user_info->id
+        ];
+        DB::connection()->enableQueryLog();
+        $list = $model->select('to','from')->distinct()->whereIn('from',$map)
+              ->orwhereIn('to',$map)
+              ->where('to','>',0)->get();
+        $ss = DB::getQueryLog();
+        if($list){
+            $list = $list->toArray();
+        }
+
+        $userModel = new User();
+        foreach($list as $k => &$v){
+            if($v['from']<1||$v['to']<1){
+                unset($list[$k]);
+            }
+            $ret = filterArr($v,$list);
+            if($ret){
+                unset($list[$k]);
+            }
+            if($user_info->id==$v['to']){
+                $uid = $v['from'];
+            }else{
+                $uid = $v['to'];
+            }
+            $info = $userModel->where(['id'=>$uid])->orderBy('id','desc')->first();
+            //get msg
+            $msg_info = $model->where(['to'=>$uid])->orwhere(['from'=>$uid])->orderBy('id','desc')->first();
+            $content = '';
+            if($msg_info){
+                $msg_info = $msg_info->toArray();
+                $content = $msg_info['content'];
+            }
+            if($info){
+                $info = $info->toArray();
+            }
+            $v['nickname'] = !empty($info)?$info['nickname']:'';
+            $v['avatar_url'] = !empty($info)?$info['avatar_url']:'';
+            $v['content'] = $msg_info['content'];
+            $v['user_id']=$info['id']?$info['id']:'';
+            $v['id'] = $msg_info['id'];
+            $v['is_read'] = $msg_info['is_read'];
+            $v['created_at'] = strtotime($msg_info['created_at']).'000';
+            $v['msg_type'] = $msg_info['msg_type'];
+            $v['video_url'] = $msg_info['video_url'];
+            $v['img_url'] = $msg_info['img_url'];
+        }
+
+        $list = array_values($list);
+        if(!empty($list)){
+            showMsg(1,$list);
+        }else{
+            showMsg(1,[]);
+        }
+
+
+    }
+    /*
+     *sync style
+     */
+    public function syncStyle(Request $request){
+        $styleModel = new Style();
+        $userModel = new User();
+        //get user list
+        $list = $userModel->where('role','<>',9)->get();
+        if($list){
+            $list = $list->toArray();
+        }
+        $res = 0;
+        foreach($list as $v){
+            $style = $styleModel->where('user_id','=',$v['id'])->get();
+            if($style){
+                $style = $style->toArray();
+            }
+            if(!$style){
+                $style_arr = [
+                    [
+                        'title'=>'希望出演的名人',
+                        'description'=>'我们会激励邀请对方出演，虽然TA不一定回来',
+                        'created_at'=>date('Y-m-d'),
+                        'user_id'=>$v['id']
+                    ],
+                    [
+                        'title'=>'演员黑名单',
+                        'description'=>'我嗯保证TA不会出演你的影片',
+                        'user_id'=>$v['id'],
+                        'created_at'=>date('Y-m-d H:i:s')
+                    ]
+                ];
+                $res = $styleModel->insert($style_arr);
+            }
+        }
+        if($res){
+            showMsg(1,$this->nullClass);
+        }else{
+            showMsg(2,$this->nullClass);
+        }
+
     }
 }
 

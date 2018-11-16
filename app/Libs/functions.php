@@ -68,3 +68,50 @@ function scanFile($path) {
     }
     return $result;
 }
+
+
+function mb_str_split ($string, $len=1) {
+	$start = 0;
+	$strlen = mb_strlen($string);
+	while ($strlen) {
+		$array[] = mb_substr($string,$start,$len,"utf-8");
+		$string = mb_substr($string, $len, $strlen,"utf-8");
+		$strlen = mb_strlen($string);
+	}
+	return $array;
+}
+
+
+function filterArr($data,$arr){
+    foreach($arr as $v){
+        if($v['to']==$data['from']){
+            return true;
+        }
+        return false;
+    }
+}
+
+
+function assoc_unique($arr, $key) {
+
+    $tmp_arr = array();
+
+    foreach ($arr as $k => $v) {
+
+        if (in_array($v[$key], $tmp_arr)) {//搜索$v[$key]是否在$tmp_arr数组中存在，若存在返回true
+
+            unset($arr[$k]);
+
+        } else {
+
+            $tmp_arr[] = $v[$key];
+
+        }
+
+    }
+
+    // sort($arr); //sort函数对数组进行排序
+
+    return $arr;
+
+}
