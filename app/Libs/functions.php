@@ -115,3 +115,14 @@ function assoc_unique($arr, $key) {
     return $arr;
 
 }
+function test($a=0,&$result=array()){
+    $a++;
+    if ($a<10) {
+        $result[]=$a;
+        test($a,$result);
+    }
+    print_r($a);die;
+    echo $a;
+    return $result;
+
+}

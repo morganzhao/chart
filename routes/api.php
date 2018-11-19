@@ -98,6 +98,12 @@ Route::any('/gam/receiveMessage','GamController@receiveMessage')->name('receiveM
 Route::any('/gam/chartMessageList','GamController@chartMessageList')->name('chartMessageList');
 
 Route::post('/gam/syncStyle','GamController@syncStyle')->name('syncStyle');
+
+Route::post('/gam/sysMsg','GamController@sysMsg')->name('sysMsg');
+
+Route::post('/gam/sysMsgList','GamController@sysMsgList')->name('sysMsgList');
+
+Route::post('/gam/viewSysMsg','GamController@viewSysMsg')->name('viewSysMsg');
 /***
  *后台管理
  */

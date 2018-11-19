@@ -341,6 +341,7 @@ class GamController extends Controller
         $focusRelationModel = new Focus_relation();
         $contactModel = new Contact();
         $userModel = new User();
+        $messageModel = new Message();
         if($request->type==1){
             $s_data = [
                 'is_attention'=>1,
@@ -380,7 +381,21 @@ class GamController extends Controller
             }
             $res = $focusRelationModel->insert($data);
             if($res){
-                $focusRelationModel->insert($rev_data);
+
+                $focus_data = [
+                    'type'=>4,
+                    'msgId'=>0,
+                    'from'=>$data['from'],
+                    'to'=>$data['to'],
+                    'img_url'=>'https://dl.dafengcheapp.com/storage/sys.png',
+                    'title'=>'系统消息',
+                    'content'=>$user_info->nickname.'关注了你',
+                    'created_at'=>date('Y-m-d H:i:s'),
+                    'user_id'=>$data['from']
+                ];
+
+                $messageModel->insert($focus_data);
+                //$focusRelationModel->insert($rev_data);
                 $data['is_attention'] = 1;
                 showMsg(1,$data);
             }else{
@@ -695,6 +710,8 @@ class GamController extends Controller
             }else{
                 $ts_info['words'] = $v;
                 $ts_info['download_url'] = 'https://dl.dafengcheapp.com/api/gam/downLoadFile?file_name='.'1454057286683_bibiyaochen2';
+                $ts_info['url'] = '/usr/local/homeroot/video/out/1454057286683_bibiyaochen2/1454057286683_bibiyaochen2.ts';
+                $ts_info['file_name'] = '1454057286683_bibiyaochen2';
                 $ts = [];
                
             }
@@ -1029,6 +1046,10 @@ class GamController extends Controller
                     ];
                 }
                 $focus_user_info = $userModel->where($map)->first();
+                $focus = $model->where(['from'=>$v['to'],'to'=>$v['from']])->first();
+                if(!$focus){
+                    unset($list[$key]);
+                }
 
                 if(!$focus_user_info){
                     unset($list[$key]);
@@ -1273,8 +1294,9 @@ class GamController extends Controller
         $messageModel = new \App\Model\Message();
         $msg_arr = json_decode($request->msg_json,true);
         $res = 0;
+        $data = [];
         if($msg_arr){
-            if($msg_arr['type']=='chart'){
+            if($msg_arr['type']=='chat'){
                 $data = [
                     'msg_type'=>$msg_arr['type'],
                     'msgId'=>$msg_arr['msgId'],
@@ -1285,7 +1307,8 @@ class GamController extends Controller
                     'created_at'=>date('Y-m-d H:i:s'),
                     'user_id'=>$msg_arr['fromId']
                 ];
-            }else{
+            }
+            if($msg_arr['type']=='video'){
                 $data = [
                     'msgId'=>$msg_arr['msgId'],
                     'msg_type'=>$msg_arr['type'],
@@ -1299,6 +1322,20 @@ class GamController extends Controller
                     'created_at'=>date('Y-m-d H:i:s')
                 ];
             }
+            if($msg_arr['type']==8){
+                $data = [
+                    'type'=>4,
+                    'msgId'=>$msg_arr['msgId'],
+                    'from'=>$msg_arr['fromId'],
+                    'to'=>$msg_arr['toId'],
+                    'img_url'=>'https://dl.dafengcheapp.com/storage/sys.png',
+                    'title'=>isset($msg_arr['title'])?$msg_arr['title']:'系统消息',
+                    'content'=>$msg_arr['content'],
+                    'created_at'=>date('Y-m-d H:i:s'),
+                    'user_id'=>$msg_arr['fromId']
+                ];
+            }
+
             $res = $messageModel->insert($data);
         }
         if($res){
@@ -1331,12 +1368,19 @@ class GamController extends Controller
             $user_info->id
         ];
         DB::connection()->enableQueryLog();
-        $list = $model->select('to','from')->distinct()->whereIn('from',$map)
+        $list = $model->select('to','from','type')->distinct()
+              ->whereIn('from',$map)
               ->orwhereIn('to',$map)
               ->where('to','>',0)->get();
         $ss = DB::getQueryLog();
         if($list){
             $list = $list->toArray();
+            foreach($list as $k=> $v){
+                if($v['type']==4){
+                    unset($list[$k]);
+                }
+            }
+            $list = array_values($list);
         }
 
         $userModel = new User();
@@ -1344,6 +1388,7 @@ class GamController extends Controller
             if($v['from']<1||$v['to']<1){
                 unset($list[$k]);
             }
+            
             $ret = filterArr($v,$list);
             if($ret){
                 unset($list[$k]);
@@ -1355,7 +1400,7 @@ class GamController extends Controller
             }
             $info = $userModel->where(['id'=>$uid])->orderBy('id','desc')->first();
             //get msg
-            $msg_info = $model->where(['to'=>$uid])->orwhere(['from'=>$uid])->orderBy('id','desc')->first();
+            $msg_info = $model->where(['to'=>$uid])->orwhere(['from'=>$uid])->where('type','=',1)->orderBy('id','desc')->first();
             $content = '';
             if($msg_info){
                 $msg_info = $msg_info->toArray();
@@ -1375,6 +1420,7 @@ class GamController extends Controller
             $v['video_url'] = $msg_info['video_url'];
             $v['img_url'] = $msg_info['img_url'];
         }
+        $list = assoc_unique($list,'id');
 
         $list = array_values($list);
         if(!empty($list)){
@@ -1426,6 +1472,91 @@ class GamController extends Controller
             showMsg(2,$this->nullClass);
         }
 
+    }
+
+    /*
+     *system msg
+     */
+    public function sysMsg(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $messageModel = new Message();
+        $user_info = getUserInfo($request->token);
+        $message = $messageModel->where(['to'=>$user_info->id,'type'=>4,'is_read'=>0])->orderBy('id','desc')->first();
+        
+        if($message){
+            $message = $message->toArray();
+            $message['created_at'] = strtotime($message['created_at']).'0000';
+            showMsg(1,$message);
+        }else{
+            showMsg(1,$this->nullClass);
+        }
+    }
+
+    /*
+     *sys list
+     */
+    public function sysMsgList(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $messageModel = new Message();
+        $user_info = getUserInfo($request->token);
+        $message = $messageModel->where(['to'=>$user_info->id,'type'=>4,'is_read'=>0])->orderBy('id','desc')->get();
+        if($message){
+            $message = $message->toArray();
+            foreach($message as &$v){
+                $v['created_at'] = strtotime($v['created_at']).'0000';
+            }
+            showMsg(1,$message);
+        }else{
+            showMsg(1,$this->nullClass);
+        }
+    }
+
+    /*
+     *view sysMsg
+     */
+    public function viewSysMsg(Request $request){
+        $validator = Validator::make($request->all(),[
+            'token'=>'required',
+            'id'=>'required'
+        ]);
+        if($validator->fails()){
+            showMsg(2,$validator->errors());
+        }
+        $messageModel = new Message();
+        $message = $messageModel->where(['id'=>$request->id,'type'=>4])->first();
+        if(!$message){
+            showMsg(2,$this->nullClass,'无此系统消息！');
+        }
+        $focusModel = new Focus_relation();
+        //dowith focus
+        $focus_data = [
+            'from'=>$message->to,
+            'to'=>$message->from,
+            'created_at'=>date('Y-m-d H:i:s')
+        ];
+        $focus_info = $focusModel->where(['from'=>$message->to,'to'=>$message->from])->first();
+        if($focus_info){
+            showMsg(1,$this->nullClass);
+        }else{
+            $res = $focusModel->insert($focus_data);
+            if($res){
+                //update msg_info
+                $messageModel->where(['id'=>$message->id])->update(['is_read'=>1,'updated_at'=>date('Y-m-d H:i:s')]);
+                showMsg(1,$this->nullClass);
+            }else{
+                shwoMsg(2,$this->nullClass,'无此系统消息！');
+            }
+        }
     }
 }
 
